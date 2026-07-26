@@ -28,7 +28,6 @@ import {
   AlertTriangle,
   TrendingUp,
   Megaphone,
-  ArrowRightLeft,
 } from "lucide-react";
 interface Props {
   isCollapsed: boolean;
@@ -66,7 +65,6 @@ const groups = [
     items: [
       ["Alertas", "/alertas", AlertTriangle],
       ["Backup", "/backup", History],
-      ["Migração e Sincronização", "/migracao", ArrowRightLeft],
       ["Log de Exclusões", "/log-exclusoes", ScrollText],
     ],
   },
@@ -207,7 +205,7 @@ export default function Sidebar({
                         {group.label}
                       </p>
                     )}
-                    {group.items.filter(([,path]) => !['/log-exclusoes','/backup','/migracao','/empresas'].includes(path) || profile?.role === 'owner').map(([label, path, Icon]) => (
+                    {group.items.filter(([,path]) => !['/log-exclusoes','/backup','/empresas'].includes(path) || profile?.role === 'owner').map(([label, path, Icon]) => (
                       <Link
                         key={path}
                         to={path}

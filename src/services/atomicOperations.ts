@@ -1,4 +1,3 @@
-import { requireSupabase } from '../lib/supabase';
 import { DataRepository, EntityRecord } from '../repositories';
 
 type ChargeRecord = EntityRecord & { due_date: string; status: string; value: number; company_id: string; client_id: string; category_id: string; series_id?: string; frequency?: string; custom_interval_days?: number; asset_id?: string; description?: string; bank_account_id?: string };
@@ -15,8 +14,7 @@ const nextDueDate = (source: string, frequency?: string, interval = 1): string |
 
 export async function markChargeAsPaidAtomic(repository: DataRepository, chargeId: string, bankAccountId: string, paidAt = new Date().toISOString()) {
   if (repository.kind === 'supabase') {
-    const { data, error } = await requireSupabase().rpc('mark_charge_as_paid', { p_charge_id: chargeId, p_bank_account_id: bankAccountId, p_paid_at: paidAt });
-    if (error) throw error; return data;
+    throw new Error('Modo somente leitura: baixa de cobrança remota desativada.');
   }
   return repository.runAtomically(['charges', 'transactions'], async () => {
     const charge = await repository.find<ChargeRecord>('charges', chargeId);
@@ -40,8 +38,7 @@ export async function markChargeAsPaidAtomic(repository: DataRepository, chargeI
 
 export async function endRecurringSeriesAtomic(repository: DataRepository, seriesId: string, reason: string) {
   if (repository.kind === 'supabase') {
-    const { data, error } = await requireSupabase().rpc('end_recurring_series', { p_series_id: seriesId, p_reason: reason });
-    if (error) throw error; return data;
+    throw new Error('Modo somente leitura: alteração de recorrência remota desativada.');
   }
   return repository.runAtomically(['recurring_series', 'charges', 'deletion_logs'], async () => {
     const series = await repository.find('recurring_series', seriesId);

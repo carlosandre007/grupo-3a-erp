@@ -30,10 +30,18 @@ const iso = (date: Date) => {
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
   return local.toISOString().split("T")[0];
 };
+type CompanyUnit="mottus"|"rastrear"|"imoveis";
+const companyUnit=(value:string):CompanyUnit|null=>{
+  const normalized=value.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
+  if(normalized.includes("MOTTUS"))return"mottus";
+  if(normalized.includes("RASTREAR"))return"rastrear";
+  if(normalized.includes("IMOVE"))return"imoveis";
+  return null;
+};
 export default function Dashboard() {
   const navigate = useNavigate();
   const[data,setData]=useState<{transactions:Transaction[];accounts:EntityRecord[];properties:EntityRecord[];vehicles:EntityRecord[];investments:EntityRecord[];charges:EntityRecord[];metrics:EntityRecord[]}>({transactions:[],accounts:[],properties:[],vehicles:[],investments:[],charges:[],metrics:[]});
-  useEffect(()=>{let active=true;const all=async(module:Parameters<typeof repository.list>[0],orderBy='id')=>{if(!repository.listPage)return repository.list(module);const rows:EntityRecord[]=[];for(let offset=0;;offset+=1000){const page=await repository.listPage(module,offset,1000,orderBy,true);rows.push(...page.records);if(rows.length>=page.total||page.records.length<1000)break}return rows};Promise.all([all('transactions','transaction_date'),all('companies'),all('bank_accounts'),all('assets'),all('properties'),all('vehicles'),all('investments'),all('charges'),all('company_metrics')]).then(([transactionRows,companies,accounts,assets,propertyRows,vehicleRows,investments,charges,metrics])=>{if(!active)return;const names=new Map(companies.map(company=>[company.id,String(company.name||'')])),assetById=new Map(assets.map(asset=>[asset.id,asset])),properties=propertyRows.map(row=>({...assetById.get(row.id),...row})),vehicles=vehicleRows.map(row=>({...assetById.get(row.id),...row}));setData({transactions:transactionRows.map(row=>({id:row.id,date:String(row.transaction_date||''),description:String(row.description||''),company:String(names.get(String(row.company_id||''))||'')as Transaction['company'],companyId:String(row.company_id||''),clientOrProvider:String(row.client_id||''),assetId:String(row.asset_id||''),bankAccountId:String(row.bank_account_id||''),category:String(row.category_id||''),value:Number(row.value||0),type:(row.type||'despesa')as Transaction['type'],status:(row.status||'pendente')as Transaction['status']})),accounts,properties,vehicles,investments,charges,metrics})}).catch(()=>{if(active)setData({transactions:[],accounts:[],properties:[],vehicles:[],investments:[],charges:[],metrics:[]})});return()=>{active=false}},[]);
+  useEffect(()=>{let active=true;const all=async(module:Parameters<typeof repository.list>[0],orderBy='id')=>{if(!repository.listPage)return repository.list(module);const rows:EntityRecord[]=[];for(let offset=0;;offset+=1000){const page=await repository.listPage(module,offset,1000,orderBy,true);rows.push(...page.records);if(rows.length>=page.total||page.records.length<1000)break}return rows};Promise.all([all('transactions','transaction_date'),all('companies'),all('bank_accounts'),all('assets'),all('properties'),all('vehicles'),all('investments'),all('charges'),all('company_metrics')]).then(([transactionRows,companies,accounts,assets,propertyRows,vehicleRows,investments,charges,metrics])=>{if(!active)return;const names=new Map(companies.map(company=>[company.id,String(company.name||'')])),assetById=new Map(assets.map(asset=>[asset.id,asset])),properties=propertyRows.map(row=>({...assetById.get(row.id),...row})),vehicles=vehicleRows.map(row=>({...assetById.get(row.id),...row}));setData({transactions:transactionRows.map(row=>({id:row.id,date:String(row.transaction_date||''),description:String(row.description||''),company:String(names.get(String(row.company_id||''))||'')as Transaction['company'],companyId:String(row.company_id||''),clientOrProvider:String(row.client_id||''),assetId:String(row.asset_id||''),bankAccountId:String(row.bank_account_id||''),category:String(row.category_id||''),value:Number(row.value||0),type:(row.type||'despesa')as Transaction['type'],status:(row.status||'pendente')as Transaction['status'],investmentKind:/invest/i.test(String(row.investment_kind||row.source_module||row.origem||''))?'investimento':'operacional'})),accounts,properties,vehicles,investments,charges,metrics})}).catch(()=>{if(active)setData({transactions:[],accounts:[],properties:[],vehicles:[],investments:[],charges:[],metrics:[]})});return()=>{active=false}},[]);
   const [period, setPeriod] = useState<"ano" | "mes" | "hoje" | "custom">(
       "mes",
     ),
@@ -50,6 +58,17 @@ export default function Dashboard() {
     return { start: iso(start), end: iso(now) };
   }, [period, customStart, customEnd]);
   const allTransactions = data.transactions.filter(transaction=>transaction.nature!=='caucao_passivo');
+  const currentMonthKey=iso(now).slice(0,7);
+  const previousMonthDate=new Date(now.getFullYear(),now.getMonth()-1,1);
+  const previousMonthKey=`${previousMonthDate.getFullYear()}-${String(previousMonthDate.getMonth()+1).padStart(2,"0")}`;
+  const paidInMonth=(key:string)=>allTransactions.filter(transaction=>transaction.status==='pago'&&transaction.date.startsWith(key));
+  const currentMonthTransactions=paidInMonth(currentMonthKey);
+  const previousMonthTransactions=paidInMonth(previousMonthKey);
+  const monthlyRevenue=currentMonthTransactions.filter(transaction=>transaction.type==='receita').reduce((sum,transaction)=>sum+Math.abs(transaction.value),0);
+  const monthlyExpense=currentMonthTransactions.filter(transaction=>transaction.type==='despesa').reduce((sum,transaction)=>sum+Math.abs(transaction.value),0);
+  const monthlyCashFlow=monthlyRevenue-monthlyExpense;
+  const previousMonthlyCashFlow=previousMonthTransactions.reduce((sum,transaction)=>sum+(transaction.type==='receita'?Math.abs(transaction.value):-Math.abs(transaction.value)),0);
+  const monthlyGrowth=previousMonthlyCashFlow===0?0:((monthlyCashFlow-previousMonthlyCashFlow)/Math.abs(previousMonthlyCashFlow))*100;
   const transactions = allTransactions.filter(
     (t) =>
       t.status === "pago" &&
@@ -62,9 +81,19 @@ export default function Dashboard() {
   const expenses = transactions
     .filter((t) => t.type === "despesa")
     .reduce((s, t) => s + Math.abs(t.value), 0);
-  const cash = data.accounts.filter(account=>account.active!==false).reduce((sum,account)=>sum+Number(account.initial_balance||0)+allTransactions.filter(transaction=>transaction.status==='pago'&&transaction.bankAccountId===account.id).reduce((balance,transaction)=>balance+(transaction.type==='receita'?Math.abs(transaction.value):-Math.abs(transaction.value)),0),0);
+  const cash = data.accounts.filter(account=>account.active!==false).reduce((sum,account)=>{
+    if(account.current_balance!==undefined&&account.current_balance!==null)return sum+Number(account.current_balance||0);
+    return sum+Number(account.initial_balance||0)+allTransactions.filter(transaction=>transaction.status==='pago'&&transaction.bankAccountId===account.id).reduce((balance,transaction)=>balance+(transaction.type==='receita'?Math.abs(transaction.value):-Math.abs(transaction.value)),0);
+  },0);
   const properties = data.properties,
     vehicles = data.vehicles;
+  const monthlyAssetInvestment=[...properties,...vehicles]
+    .filter(asset=>String(asset.acquisition_date||'').startsWith(currentMonthKey))
+    .reduce((sum,asset)=>sum+Number(asset.purchase_value||0),0);
+  const monthlyFinancialInvestment=currentMonthTransactions
+    .filter(transaction=>transaction.type==='despesa'&&transaction.investmentKind==='investimento')
+    .reduce((sum,transaction)=>sum+Math.abs(transaction.value),0);
+  const monthlyInvested=monthlyAssetInvestment+monthlyFinancialInvestment;
   const invested =
     [...properties, ...vehicles].reduce(
       (s, a) => s + Number(a.purchase_value || 0),
@@ -77,7 +106,6 @@ export default function Dashboard() {
       .reduce((s, t) => s + Math.abs(t.value), 0);
   const manualInvested = data.investments.filter(item=>!item.asset_id).reduce((sum,item)=>sum+Math.abs(Number(item.value||0)),0);
   const totalInvested = invested + manualInvested;
-  const trackerSummary = {total:data.metrics.length};
   const previousRange = useMemo(() => {
     const start = new Date(`${range.start || iso(now)}T12:00:00`),
       end = new Date(`${range.end}T12:00:00`),
@@ -140,8 +168,21 @@ export default function Dashboard() {
       }),
     [allTransactions, range.start, range.end],
   );
+  const annualFlow=useMemo(
+    ()=>Array.from({length:12},(_,month)=>{
+      const date=new Date(now.getFullYear(),month,1);
+      const key=`${date.getFullYear()}-${String(month+1).padStart(2,"0")}`;
+      const list=allTransactions.filter(transaction=>transaction.status==="pago"&&transaction.date.startsWith(key));
+      return{
+        name:date.toLocaleDateString("pt-BR",{month:"short"}).replace(".",""),
+        Receitas:list.filter(transaction=>transaction.type==="receita").reduce((sum,transaction)=>sum+Math.abs(transaction.value),0),
+        Despesas:list.filter(transaction=>transaction.type==="despesa").reduce((sum,transaction)=>sum+Math.abs(transaction.value),0),
+      };
+    }),
+    [allTransactions,now.getFullYear()],
+  );
   const companyStats = (company: "LOC MOTTUS" | "3A RASTREAR" | "IMÓVEIS") => {
-    const list = transactions.filter((t) => t.company === company);
+    const list = transactions.filter((t) => companyUnit(t.company)===companyUnit(company));
     const receipt = list
         .filter((t) => t.type === "receita")
         .reduce((s, t) => s + Math.abs(t.value), 0),
@@ -161,7 +202,7 @@ export default function Dashboard() {
           key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
         const companyList = allTransactions.filter(
           (t) =>
-            t.company === company &&
+            companyUnit(t.company)===companyUnit(company) &&
             t.status === "pago" &&
             t.date.startsWith(key) &&
             (!range.start || t.date >= range.start) &&
@@ -177,6 +218,7 @@ export default function Dashboard() {
           ),
         };
       }),
+      count:list.length,
     };
   };
   const mottus = companyStats("LOC MOTTUS"),
@@ -188,7 +230,11 @@ export default function Dashboard() {
     { name: "IMÓVEIS", value: imoveis.receipt, color: "#81765f" },
   ];
   const totalPie = pieData.reduce((s, i) => s + i.value, 0);
-  const overdue = data.charges.filter(charge=>charge.status==='vencido').length;
+  const mottusCompanyIds=new Set(allTransactions.filter(transaction=>companyUnit(transaction.company)==='mottus').map(transaction=>transaction.companyId).filter(Boolean));
+  const overdue = data.charges.filter(charge=>
+    mottusCompanyIds.has(String(charge.company_id||''))&&
+    (charge.status==='vencido'||(charge.status==='pendente'&&String(charge.due_date||'')<iso(now)))
+  ).length;
   const activeProperties = properties.filter((property) => property.status !== "manutencao"),
     occupancy = activeProperties.length
       ? Math.round(
@@ -329,11 +375,11 @@ export default function Dashboard() {
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <button onClick={() => navigate("/bancos")} className="text-left">
           <StatCard
-            title="Total em Caixa"
-            value={money(cash)}
+            title="Saldo do Mês"
+            value={money(monthlyCashFlow)}
             trend={{
-              value: `${growth >= 0 ? "+" : ""}${growth.toFixed(1)}%`,
-              isPositive: growth >= 0,
+              value: `${monthlyGrowth >= 0 ? "+" : ""}${monthlyGrowth.toFixed(1)}%`,
+              isPositive: monthlyGrowth >= 0,
             }}
             icon={<TrendingUp className="w-5 text-green-600" />}
             colorVariant="success"
@@ -341,8 +387,8 @@ export default function Dashboard() {
         </button>
         <button onClick={() => navigate("/investimentos")} className="text-left">
           <StatCard
-            title="Total Investido"
-            value={money(totalInvested)}
+            title="Investido no Mês"
+            value={money(monthlyInvested)}
             icon={<PiggyBank className="w-5 text-secondary" />}
           />
         </button>
@@ -351,8 +397,8 @@ export default function Dashboard() {
           className="text-left"
         >
           <StatCard
-            title="Receitas"
-            value={money(revenues)}
+            title="Receitas do Mês"
+            value={money(monthlyRevenue)}
             icon={<Coins className="w-5 text-primary" />}
           />
         </button>
@@ -361,8 +407,8 @@ export default function Dashboard() {
           className="text-left"
         >
           <StatCard
-            title="Despesas"
-            value={money(expenses)}
+            title="Despesas do Mês"
+            value={money(monthlyExpense)}
             icon={<ShoppingCart className="w-5 text-error" />}
           />
         </button>
@@ -371,11 +417,11 @@ export default function Dashboard() {
         <section className="lg:col-span-2 bg-white border rounded-xl p-6 custom-shadow">
           <h3 className="font-display font-bold">Fluxo Mensal</h3>
           <p className="text-xs text-secondary mb-5">
-            Comparativo Receitas vs Despesas (6 meses)
+            Comparativo anual de Receitas vs Despesas
           </p>
           <div className="h-64">
             <ResponsiveContainer>
-              <BarChart data={months}>
+              <BarChart data={annualFlow}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="name" />
                 <YAxis />
@@ -440,8 +486,8 @@ export default function Dashboard() {
             "3A RASTREAR",
             "/equipamentos",
             rastrear,
-            "Ativos agregados",
-            `${trackerSummary.total} ativo(s)`,
+            "Lançamentos no período",
+            `${rastrear.count} lançamento(s)`,
           )}
           {unitCard(
             "IMÓVEIS",

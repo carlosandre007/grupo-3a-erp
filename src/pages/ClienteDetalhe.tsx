@@ -1,4 +1,16 @@
-import React from 'react';
-import { useParams } from 'react-router-dom';
-import { getClients } from '../mockData';
-export default function ClienteDetalhe(){const {id}=useParams();const c=getClients().find(x=>x.id===id);if(!c)return <div>Cliente não encontrado.</div>;return <div className="bg-white border border-outline-variant rounded-xl p-6 custom-shadow"><h2 className="font-display font-black text-lg">Detalhes do Cliente</h2><div className="grid md:grid-cols-2 gap-4 mt-5 text-sm"><p><b>Nome:</b> {c.name}</p><p><b>Tipo:</b> {c.type}</p><p><b>Documento:</b> {c.document}</p><p><b>Telefone:</b> {c.phone}</p><p><b>E-mail:</b> {c.email}</p><p><b>Endereço:</b> {c.address||'Não informado'}</p><p><b>CNH:</b> {c.cnhNumber||'Não informada'}</p><p><b>Vencimento CNH:</b> {c.cnhExpiry||'Não informado'}</p></div></div>}
+import React,{useEffect,useState}from'react';
+import{useParams}from'react-router-dom';
+import{repository,type EntityRecord}from'../repositories';
+
+type ClientRow=EntityRecord&{name?:string;person_type?:string;document?:string;phone?:string;email?:string;address?:string;cnh_number?:string;cnh_expiry?:string};
+export default function ClienteDetalhe(){
+  const{id}=useParams();
+  const[client,setClient]=useState<ClientRow|null>(null);
+  const[loading,setLoading]=useState(true);
+  const[error,setError]=useState('');
+  useEffect(()=>{if(!id){setLoading(false);return}repository.find<ClientRow>('clients',id).then(setClient).catch(reason=>setError(reason instanceof Error?reason.message:'Não foi possível carregar o cliente.')).finally(()=>setLoading(false))},[id]);
+  if(loading)return <div className="rounded-xl border bg-white p-6">Carregando cliente...</div>;
+  if(error)return <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-700">{error}</div>;
+  if(!client)return <div className="rounded-xl border bg-white p-6">Cliente não encontrado.</div>;
+  return <div className="rounded-xl border bg-white p-6 custom-shadow"><h2 className="font-display text-lg font-black">Detalhes do Cliente</h2><div className="mt-5 grid gap-4 text-sm md:grid-cols-2"><p><b>Nome:</b> {client.name||'Não informado'}</p><p><b>Tipo:</b> {client.person_type||'Não informado'}</p><p><b>Documento:</b> {client.document||'Não informado'}</p><p><b>Telefone:</b> {client.phone||'Não informado'}</p><p><b>E-mail:</b> {client.email||'Não informado'}</p><p><b>Endereço:</b> {client.address||'Não informado'}</p><p><b>CNH:</b> {client.cnh_number||'Não informada'}</p><p><b>Vencimento CNH:</b> {client.cnh_expiry||'Não informado'}</p></div></div>;
+}

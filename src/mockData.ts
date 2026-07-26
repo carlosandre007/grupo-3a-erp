@@ -1,12 +1,15 @@
 import { Transaction, Vehicle, Equipment, Property, Client, Charge, DeletionLog, BankAccount, BankMovement, FixedCost, Investment, TrackerSummary, RentalGuarantee, MarketingSpend, AssetDetails } from './types';
+import { isSupabaseConfigured } from './lib/supabase';
 
 // Helper to load/save from localStorage
 const getStored = <T>(key: string, fallback: T): T => {
+  if (isSupabaseConfigured) return fallback;
   const data = localStorage.getItem(`erp_3a_${key}`);
   return data ? JSON.parse(data) : fallback;
 };
 
 const saveStored = <T>(key: string, val: T): void => {
+  if (isSupabaseConfigured) return;
   localStorage.setItem(`erp_3a_${key}`, JSON.stringify(val));
 };
 
@@ -27,7 +30,7 @@ const syncCounter = (type: CodedType, code?: string) => {
 
 // Data is loaded exclusively from localStorage. No sample records are inserted.
 const removeConfirmedTemplateTransactions=():void=>{const migration='erp_3a_cleanup_template_transactions_v1';if(localStorage.getItem(migration))return;const key='erp_3a_transactions',raw=localStorage.getItem(key);if(!raw){localStorage.setItem(migration,'none');return;}try{const records=JSON.parse(raw)as Transaction[],smallTemplateId=/^(?:tx[-_])?0?\d{1,3}$/i,candidates=records.filter(item=>smallTemplateId.test(item.id));const normalized=candidates.map(item=>item.description.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()),signatures=['aluguel semanal','manutencao preventiva','seguro semanal','assinatura mensal','manutencao veicular'];if(candidates.length===11&&signatures.every(signature=>normalized.some(value=>value.includes(signature)))){localStorage.setItem(`erp_3a_backup_before_mock_cleanup_${new Date().toISOString()}`,raw);const ids=new Set(candidates.map(item=>item.id));localStorage.setItem(key,JSON.stringify(records.filter(item=>!ids.has(item.id))));localStorage.setItem(migration,JSON.stringify({removedIds:[...ids],removedCount:ids.size,origin:'google-ai-studio-template'}));}else localStorage.setItem(migration,'unconfirmed');}catch{localStorage.setItem(migration,'invalid-storage');}};
-removeConfirmedTemplateTransactions();
+if(!isSupabaseConfigured)removeConfirmedTemplateTransactions();
 
 // CRUD APIS OPERATING OVER LOCALSTORAGE WITH TYPINGS
 

@@ -21,7 +21,7 @@ export const sha256=async(value:string|ArrayBuffer)=>{
   return hex(nobleSha256(bytes));
 };
 const payloadOf=(backup:Omit<MasterBackup,'integrity'>)=>JSON.stringify(backup);
-export async function createMasterBackup():Promise<MasterBackup>{const modules:MasterBackup['modules']={};for(const module of backupModules)modules[module]=await repository.list(module);const payload={format:BACKUP_FORMAT,version:BACKUP_VERSION,exportedAt:new Date().toISOString(),mode:'new_only' as const,modules};return{...payload,integrity:{algorithm:'SHA-256',hash:await sha256(payloadOf(payload))}};}
+export async function createMasterBackup(selectedModules:RepositoryModule[]=backupModules):Promise<MasterBackup>{const modules:MasterBackup['modules']={};for(const module of selectedModules)modules[module]=await repository.list(module);const payload={format:BACKUP_FORMAT,version:BACKUP_VERSION,exportedAt:new Date().toISOString(),mode:'new_only' as const,modules};return{...payload,integrity:{algorithm:'SHA-256',hash:await sha256(payloadOf(payload))}};}
 
 type FinancialRow={date?:unknown;transaction_date?:unknown;type?:unknown;[key:string]:unknown};
 export type MasterBackupZip={buffer:ArrayBuffer;sha256:string;total:number;revenues:number;expenses:number;lastDate:string};
@@ -48,11 +48,15 @@ const assertExpectedFinancial=(summary:ReturnType<typeof financialSummary>)=>{
   if(summary.total!==expectedFinancial.total||summary.revenues!==expectedFinancial.revenues||summary.expenses!==expectedFinancial.expenses||summary.lastDate!==expectedFinancial.lastDate)
     throw new Error(`Download bloqueado: financeiro.json diverge do esperado (total=${summary.total}, receitas=${summary.revenues}, despesas=${summary.expenses}, última data=${summary.lastDate||'ausente'}).`);
 };
-export async function createMasterBackupZip():Promise<MasterBackupZip>{
+const assertCurrentFinancial=(summary:ReturnType<typeof financialSummary>)=>{
+  if(summary.revenues+summary.expenses!==summary.total)throw new Error(`Download bloqueado: ${summary.total-summary.revenues-summary.expenses} transação(ões) possui(em) tipo inválido.`);
+  if(summary.total>0&&!/^\d{4}-\d{2}-\d{2}$/.test(summary.lastDate))throw new Error('Download bloqueado: última data financeira inválida.');
+};
+export async function createMasterBackupZip(selectedModules:RepositoryModule[]=backupModules):Promise<MasterBackupZip>{
   const modules:MasterBackup['modules']={};
-  for(const module of backupModules)modules[module]=await fetchAll(module);
+  for(const module of selectedModules)modules[module]=await fetchAll(module);
   const transactions=(modules.transactions??[]) as FinancialRow[],summary=financialSummary(transactions);
-  assertExpectedFinancial(summary);
+  assertCurrentFinancial(summary);
   const exportedAt=new Date().toISOString();
   const metadata={format:BACKUP_FORMAT,version:BACKUP_VERSION,exportedAt,mode:'new_only',exportedCounts:{financial_history:summary.total,revenues:summary.revenues,expenses:summary.expenses},validation:{exportedTotal:summary.total,revenues:summary.revenues,expenses:summary.expenses,lastDate:summary.lastDate}};
   const zip=new JSZip(),database=zip.folder('database')!;
@@ -67,7 +71,7 @@ export async function createMasterBackupZip():Promise<MasterBackupZip>{
   const finalRows=JSON.parse(await financeFile.async('text')) as FinancialRow[];
   const finalMetadata=JSON.parse(await metadataFile.async('text')) as typeof metadata;
   const finalSummary=financialSummary(finalRows);
-  assertExpectedFinancial(finalSummary);
+  assertCurrentFinancial(finalSummary);
   const counts=finalMetadata.exportedCounts,validation=finalMetadata.validation;
   if(counts.financial_history!==finalSummary.total||counts.revenues!==finalSummary.revenues||counts.expenses!==finalSummary.expenses||validation.exportedTotal!==finalSummary.total||validation.revenues!==finalSummary.revenues||validation.expenses!==finalSummary.expenses||validation.lastDate!==finalSummary.lastDate)
     throw new Error('Download bloqueado: financeiro.json e metadata.json divergem.');
