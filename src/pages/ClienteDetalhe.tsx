@@ -1,0 +1,4 @@
+import React from 'react';
+import { useParams } from 'react-router-dom';
+import { getClients } from '../mockData';
+export default function ClienteDetalhe(){const {id}=useParams();const c=getClients().find(x=>x.id===id);if(!c)return <div>Cliente não encontrado.</div>;return <div className="bg-white border border-outline-variant rounded-xl p-6 custom-shadow"><h2 className="font-display font-black text-lg">Detalhes do Cliente</h2><div className="grid md:grid-cols-2 gap-4 mt-5 text-sm"><p><b>Nome:</b> {c.name}</p><p><b>Tipo:</b> {c.type}</p><p><b>Documento:</b> {c.document}</p><p><b>Telefone:</b> {c.phone}</p><p><b>E-mail:</b> {c.email}</p><p><b>Endereço:</b> {c.address||'Não informado'}</p><p><b>CNH:</b> {c.cnhNumber||'Não informada'}</p><p><b>Vencimento CNH:</b> {c.cnhExpiry||'Não informado'}</p></div></div>}

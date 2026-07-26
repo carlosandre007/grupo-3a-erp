@@ -1,0 +1,15 @@
+import JSZip from'jszip';
+import{extractLegacyZip}from'../src/services/legacyZipAdapter';
+const zip=new JSZip();
+zip.file('backup/database/metadados.json',JSON.stringify({version:'legacy-zip-test'}));
+zip.file('backup/database/categorias',JSON.stringify([]));
+zip.file('backup/database/empresas',JSON.stringify([{id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',name:'IMÓVEIS',slug:'imoveis'},{id:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',name:'LOC MOTTUS',slug:'loc-mottus'}]));
+zip.file('backup/database/clientes',JSON.stringify([{id:'cccccccc-cccc-4ccc-8ccc-cccccccccccc',name:'Cliente vinculado'},{id:'dddddddd-dddd-4ddd-8ddd-dddddddddddd',name:'Cliente sem vínculo'}]));
+zip.file('backup/database/imoveis',JSON.stringify([{id:'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',code:'01CAS',description:'Casa',address:'Endereço',tipo:'imovel',status:'rented',tenant_id:'cccccccc-cccc-4ccc-8ccc-cccccccccccc',value:1000}]));
+zip.file('backup/database/financeiro/registros',JSON.stringify([]));
+zip.file('backup/database/usuarios',JSON.stringify([{id:'11111111-1111-4111-8111-111111111111',password:'never-import'}]));
+const bytes=await zip.generateAsync({type:'uint8array'}),buffer=bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength)as ArrayBuffer;
+const result=await extractLegacyZip(buffer);
+const linked=(result.root.clientes as Record<string,unknown>[]).find(item=>item.id==='cccccccc-cccc-4ccc-8ccc-cccccccccccc'),unlinked=(result.root.clientes as Record<string,unknown>[]).find(item=>item.id==='dddddddd-dddd-4ddd-8ddd-dddddddddddd');
+if(result.diagnostic.format!=='legacy-zip'||result.diagnostic.version!=='legacy-zip-test'||result.diagnostic.moduleCounts?.usuarios!==1||!result.quarantine.some(item=>item.module==='usuarios')||!Array.isArray(result.root.assets)||(result.root.assets as unknown[]).length!==1||!linked?.company_id||unlinked?.company_id)throw new Error('Leitura ZIP falhou.');
+console.log('ZIP_DRY_RUN=OK DATABASE=AUTO FILE_WITHOUT_EXTENSION=OK USERS=QUARANTINED WRITES=0');

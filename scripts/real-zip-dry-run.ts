@@ -1,0 +1,20 @@
+import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { extractLegacyZip } from '../src/services/legacyZipAdapter';
+import { adaptLegacyBackup, diagnoseRoot } from '../src/services/legacyBackupAdapter';
+import { inspectImport } from '../src/services/jsonImporter';
+import type { BackupAnalysis } from '../src/services/backupMaster';
+import { createRestorePlan } from '../src/services/restoreValidation';
+import type { DataRepository, EntityRecord, RepositoryModule } from '../src/repositories/contracts';
+
+const zipPath=process.argv[2];if(!zipPath)throw new Error('Caminho do ZIP ausente.');
+const bytes=await readFile(zipPath),buffer=bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength)as ArrayBuffer;
+let writes=0;
+const repository:DataRepository={kind:'localStorage',async list<T extends EntityRecord>(){return[]as T[]},async find(){return null},async create<T extends EntityRecord>(_module:RepositoryModule,record:T){writes++;return record},async update<T extends EntityRecord>(_module:RepositoryModule,record:T){writes++;return record},async remove(){writes++},async runAtomically<T>(_modules:RepositoryModule[],operation:()=>Promise<T>){return operation()}};
+const extracted=await extractLegacyZip(buffer),adapted=adaptLegacyBackup(extracted.root,diagnoseRoot(extracted.root,extracted.diagnostic.encoding));
+const analysis:BackupAnalysis={backup:null,convertedModules:adapted.modules,report:await inspectImport(repository,adapted.modules,true),diagnostic:extracted.diagnostic,adapterQuarantine:extracted.quarantine};
+const plan=await createRestorePlan(repository,analysis,createHash('sha256').update(bytes).digest('hex')),s=plan.summary;
+console.log(`TOTAL=${s.total} VALID=${s.valid} DUPLICATES=${s.duplicates} CONFLICTS=${s.conflicts} INVALID=${s.invalid} QUARANTINE=${s.quarantine} READY=${s.ready}`);
+console.log(`CRITICAL_OCCURRENCES=${s.criticalErrors} ERROR_GROUPS=${s.errorGroups.length} CONSISTENT=${s.consistent?'YES':'NO'} RESTORE_BLOCKED=${plan.ready?'NO':'YES'} WRITES=${writes}`);
+for(const row of s.modules)if(row.total)console.log(`MODULE module=${row.module} total=${row.total} valid=${row.valid} invalid=${row.invalid} duplicates=${row.duplicates} conflicts=${row.conflicts}`);
+for(const group of s.errorGroups)console.log(`ERROR module=${group.module} field=${group.field} code=${group.code} quantity=${group.quantity}`);

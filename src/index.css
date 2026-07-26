@@ -1,0 +1,94 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700;900&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Custom Material 3 style palette based on stitch import specifications */
+  --color-primary: #785a00;
+  --color-primary-container: #ffc300;
+  --color-on-primary-container: #6d5200;
+  --color-secondary: #5e5e5e;
+  --color-error: #ba1a1a;
+  --color-surface-variant: #dbe4ed;
+  --color-surface-dim: #d2dbe4;
+  --color-primary-fixed-dim: #f8be00;
+  --color-on-primary-fixed: #251a00;
+  --color-surface-bright: #f6faff;
+  --color-secondary-fixed-dim: #c6c6c6;
+  --color-inverse-surface: #293138;
+  --color-on-surface: #141d23;
+  --color-on-surface-variant: #4f4632;
+  --color-outline: #81765f;
+  --color-outline-variant: #d3c5ab;
+  --color-surface-container: #e6eff8;
+  --color-surface-container-low: #ecf5fe;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-high: #e0e9f2;
+  --color-surface-container-highest: #dbe4ed;
+  --color-background: #f6faff;
+  --color-primary-fixed: #ffdf9a;
+  --color-on-primary-fixed-variant: #5a4300;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-background);
+  color: var(--color-on-background);
+  min-height: 100vh;
+}
+
+.custom-shadow {
+  box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.04);
+}
+
+.sidebar-transition {
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--color-outline-variant);
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-outline);
+}
+
+.input {
+  width: 100%;
+  margin-top: 0.25rem;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 0.375rem;
+  padding: 0.65rem 0.75rem;
+  background: white;
+  color: var(--color-on-surface);
+}
+.input:disabled { background: #f3f4f6; opacity: .7; }
+
+/* Material Symbols standard styles */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+}

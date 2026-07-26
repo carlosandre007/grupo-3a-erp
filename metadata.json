@@ -1,0 +1,8 @@
+{
+  "name": "Remix: ERP GRUPO 3A",
+  "description": "ERP funcional completo do Grupo 3A, incluindo controle de patrimônio, veículos, equipamentos, imóveis, fluxo de caixa e calendário de cobrança.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

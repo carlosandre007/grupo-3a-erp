@@ -1,0 +1,11 @@
+const storage=new Map<string,string>();
+Object.defineProperty(globalThis,'localStorage',{value:{getItem:(key:string)=>storage.get(key)??null,setItem:(key:string,value:string)=>storage.set(key,value),removeItem:(key:string)=>storage.delete(key)}});
+Object.defineProperty(globalThis,'window',{value:{dispatchEvent:()=>true}});
+const descriptions=['Aluguel Semanal — João Silva top','Manutenção Preventiva — CG 160 XYZ-9876','Seguro Semanal — Taxa admin','Assinatura Mensal — Rastreamento Plus','Manutenção Veicular — Frota Mottus','Demo 6','Demo 7','Demo 8','Demo 9','Demo 10','Demo 11'];
+storage.set('erp_3a_transactions',JSON.stringify(descriptions.map((description,index)=>({id:`tx-${index+1}`,date:`2026-07-${String(index+1).padStart(2,'0')}`,description,company:'HOLDING',clientOrProvider:'Template',value:1,type:'despesa',status:'pago',category:'Demo'}))));
+const module=await import('../src/mockData');
+if(module.getTransactions().length!==0)throw new Error('Mocks confirmados não foram removidos.');
+if(![...storage.keys()].some(key=>key.startsWith('erp_3a_backup_before_mock_cleanup_')))throw new Error('Backup local não foi criado.');
+const rows=Array.from({length:55},(_,index)=>({id:String(index),date:`2026-07-${String((index%28)+1).padStart(2,'0')}`})).sort((a,b)=>b.date.localeCompare(a.date));
+if(rows.slice(0,20).length!==20||rows.slice(0,40).length!==40||rows.slice(0,rows.length).length!==55)throw new Error('Carregamento progressivo inválido.');
+console.log('CASH_FLOW=OK MOCKS_REMOVED=11 BACKUP=OK FIRST=20 MORE=40 ALL=55 ORDER=DESC');

@@ -1,0 +1,4 @@
+project_id = "eupfkkazjmprmaqdmlcm"
+
+[functions.super-endpoint]
+verify_jwt = true
