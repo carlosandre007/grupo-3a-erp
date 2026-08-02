@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { useAuth } from "../auth/AuthContext";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -65,6 +64,7 @@ const groups = [
     items: [
       ["Alertas", "/alertas", AlertTriangle],
       ["Backup", "/backup", History],
+      ["Log de Erros", "/log-erros", AlertTriangle],
       ["Log de Exclusões", "/log-exclusoes", ScrollText],
     ],
   },
@@ -77,7 +77,6 @@ export default function Sidebar({
 }: Props) {
   const location = useLocation(),
     navigate = useNavigate();
-  const { profile } = useAuth();
   const [openGroup, setOpenGroup] = useState<string | null>(() =>
       sessionStorage.getItem("erp_sidebar_group"),
     ),
@@ -106,7 +105,7 @@ export default function Sidebar({
         <header className={`relative flex border-b border-white/10 ${isCollapsed ? "h-16 items-center justify-center md:px-2" : "h-52 flex-col items-center justify-center px-4"}`}>
           <div className={`flex items-center overflow-hidden ${isCollapsed ? "justify-center" : "flex-col gap-2"}`}>
             <button onClick={() => isCollapsed && setIsCollapsed(false)} title="GRUPO 3A ERP" className="shrink-0 flex items-center justify-center">
-              <img src="/assets/logo-grupo-3a.png" alt="GRUPO 3A ERP" className={`${isCollapsed ? "w-11 h-11" : "w-36 h-36"} object-contain`} />
+              <img src={`${import.meta.env.BASE_URL}assets/logo-grupo-3a.png`} alt="GRUPO 3A ERP" className={`${isCollapsed ? "w-11 h-11" : "w-36 h-36"} object-contain`} />
             </button>
             {(!isCollapsed || isOpenMobile) && (
               <b className="whitespace-nowrap text-primary-fixed">
@@ -205,7 +204,7 @@ export default function Sidebar({
                         {group.label}
                       </p>
                     )}
-                    {group.items.filter(([,path]) => !['/log-exclusoes','/backup','/empresas'].includes(path) || profile?.role === 'owner').map(([label, path, Icon]) => (
+                    {group.items.map(([label, path, Icon]) => (
                       <Link
                         key={path}
                         to={path}

@@ -6,7 +6,7 @@ interface Props {
   isOpen: boolean;
   recordName: string;
   onClose: () => void;
-  onValidated: (reason: string) => void;
+  onValidated: (reason: string, password: string) => void | Promise<void>;
 }
 
 export default function DeleteConfirmation({ isOpen, recordName, onClose, onValidated }: Props) {
@@ -18,9 +18,10 @@ export default function DeleteConfirmation({ isOpen, recordName, onClose, onVali
     event.preventDefault();
     if (!password || !reason.trim()) return setMessage('Informe a senha administrativa e o motivo.');
     const result = await validateAdministrativePassword(password);
-    setPassword('');
     if (!result.valid) return setMessage(result.message);
-    onValidated(reason.trim());
+    await onValidated(reason.trim(), password);
+    setPassword('');
+    setReason('');
   };
 
   return (

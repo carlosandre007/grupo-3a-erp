@@ -1,0 +1,15 @@
+DirectoryIndex index.html
+Options -MultiViews
+AddType text/html .html
+AddType text/css .css
+AddType application/javascript .js
+AddType application/manifest+json .webmanifest
+
+RewriteEngine On
+RewriteBase /sistema/
+
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+RewriteRule . index.html [L]

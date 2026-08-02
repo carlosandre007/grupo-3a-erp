@@ -6,8 +6,8 @@ import { adaptLegacyBackup, BackupDiagnostic, diagnoseRoot } from './legacyBacku
 import { adaptLegacyZip } from './legacyZipAdapter';
 
 export const BACKUP_FORMAT='GRUPO_3A_ERP_BACKUP_MASTER',BACKUP_VERSION='1.0.0';
-export const backupModules:RepositoryModule[]=['companies','categories','clients','assets','properties','vehicles','bank_accounts','bank_movements','recurring_series','fixed_costs','charges','transactions','investments','alerts','receipts','company_metrics'];
-export type MasterBackup={format:string;version:string;exportedAt:string;mode:'new_only';modules:Partial<Record<RepositoryModule,unknown[]>>;integrity:{algorithm:'SHA-256';hash:string}};
+export const backupModules:RepositoryModule[]=['companies','categories','clients','properties','vehicles','bank_accounts','fixed_costs','charges','transactions','deletion_logs'];
+export type MasterBackup={format:string;version:string;exportedAt:string;mode:'new_only';metadata:{system:'Grupo 3A ERP';generatedAt:string;moduleCounts:Partial<Record<RepositoryModule,number>>;totalRecords:number};modules:Partial<Record<RepositoryModule,unknown[]>>;integrity:{algorithm:'SHA-256';scope:'payload-without-integrity';hash:string}};
 export type BackupAnalysis={backup:MasterBackup|null;convertedModules:Partial<Record<RepositoryModule,unknown[]>>;report:ImportReport;diagnostic:BackupDiagnostic;adapterQuarantine:Array<{module:string;index:number;reason:string}>;adapterIgnored?:Array<{module:string;index:number;reason:string}>};
 const encode=(value:string)=>new TextEncoder().encode(value);
 const hex=(bytes:Uint8Array)=>Array.from(bytes).map(byte=>byte.toString(16).padStart(2,'0')).join('');
@@ -21,7 +21,8 @@ export const sha256=async(value:string|ArrayBuffer)=>{
   return hex(nobleSha256(bytes));
 };
 const payloadOf=(backup:Omit<MasterBackup,'integrity'>)=>JSON.stringify(backup);
-export async function createMasterBackup(selectedModules:RepositoryModule[]=backupModules):Promise<MasterBackup>{const modules:MasterBackup['modules']={};for(const module of selectedModules)modules[module]=await repository.list(module);const payload={format:BACKUP_FORMAT,version:BACKUP_VERSION,exportedAt:new Date().toISOString(),mode:'new_only' as const,modules};return{...payload,integrity:{algorithm:'SHA-256',hash:await sha256(payloadOf(payload))}};}
+export async function createMasterBackup(selectedModules:RepositoryModule[]=backupModules):Promise<MasterBackup>{const modules:MasterBackup['modules']={};for(const module of selectedModules)modules[module]=await repository.list(module);const exportedAt=new Date().toISOString(),moduleCounts=Object.fromEntries(selectedModules.map(module=>[module,modules[module]?.length??0]))as Partial<Record<RepositoryModule,number>>,totalRecords=Object.values(moduleCounts).reduce((sum,count)=>sum+Number(count||0),0);const payload={format:BACKUP_FORMAT,version:BACKUP_VERSION,exportedAt,mode:'new_only' as const,metadata:{system:'Grupo 3A ERP' as const,generatedAt:exportedAt,moduleCounts,totalRecords},modules};return{...payload,integrity:{algorithm:'SHA-256',scope:'payload-without-integrity',hash:await sha256(payloadOf(payload))}};}
+export async function createMasterBackupJson(selectedModules:RepositoryModule[]=backupModules){const backup=await createMasterBackup(selectedModules),json=JSON.stringify(backup,null,2),bytes=encode(json);return{backup,json,size:bytes.byteLength,totalRecords:backup.metadata.totalRecords,sha256:await sha256(json)}}
 
 type FinancialRow={date?:unknown;transaction_date?:unknown;type?:unknown;[key:string]:unknown};
 export type MasterBackupZip={buffer:ArrayBuffer;sha256:string;total:number;revenues:number;expenses:number;lastDate:string};

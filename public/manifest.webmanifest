@@ -1,0 +1,19 @@
+{
+  "name": "Grupo 3A ERP",
+  "short_name": "Grupo 3A",
+  "description": "Sistema de gestão Grupo 3A ERP",
+  "lang": "pt-BR",
+  "start_url": "/sistema/",
+  "scope": "/sistema/",
+  "display": "standalone",
+  "background_color": "#f7f7f5",
+  "theme_color": "#ffc300",
+  "icons": [
+    {
+      "src": "/sistema/assets/logo-grupo-3a.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

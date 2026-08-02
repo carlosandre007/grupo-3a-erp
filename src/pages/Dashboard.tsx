@@ -24,6 +24,7 @@ import StatCard from "../components/StatCard";
 import { repository } from "../repositories";
 import type { EntityRecord } from "../repositories";
 import type { Transaction } from "../types";
+import { getManualInvestment } from "../services/manualInvestment";
 const money = (value: number) =>
   `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const iso = (date: Date) => {
@@ -41,6 +42,9 @@ const companyUnit=(value:string):CompanyUnit|null=>{
 export default function Dashboard() {
   const navigate = useNavigate();
   const[data,setData]=useState<{transactions:Transaction[];accounts:EntityRecord[];properties:EntityRecord[];vehicles:EntityRecord[];investments:EntityRecord[];charges:EntityRecord[];metrics:EntityRecord[]}>({transactions:[],accounts:[],properties:[],vehicles:[],investments:[],charges:[],metrics:[]});
+  const[manualInvestment,setManualInvestment]=useState<number|null>(null);
+  const[fixedCosts,setFixedCosts]=useState<EntityRecord[]>([]);
+  useEffect(()=>{let active=true;Promise.all([getManualInvestment(),repository.list('fixed_costs')]).then(([investment,costs])=>{if(active){setManualInvestment(investment?.value??null);setFixedCosts(costs)}}).catch(()=>{if(active){setManualInvestment(null);setFixedCosts([])}});return()=>{active=false}},[]);
   useEffect(()=>{let active=true;const all=async(module:Parameters<typeof repository.list>[0],orderBy='id')=>{if(!repository.listPage)return repository.list(module);const rows:EntityRecord[]=[];for(let offset=0;;offset+=1000){const page=await repository.listPage(module,offset,1000,orderBy,true);rows.push(...page.records);if(rows.length>=page.total||page.records.length<1000)break}return rows};Promise.all([all('transactions','transaction_date'),all('companies'),all('bank_accounts'),all('assets'),all('properties'),all('vehicles'),all('investments'),all('charges'),all('company_metrics')]).then(([transactionRows,companies,accounts,assets,propertyRows,vehicleRows,investments,charges,metrics])=>{if(!active)return;const names=new Map(companies.map(company=>[company.id,String(company.name||'')])),assetById=new Map(assets.map(asset=>[asset.id,asset])),properties=propertyRows.map(row=>({...assetById.get(row.id),...row})),vehicles=vehicleRows.map(row=>({...assetById.get(row.id),...row}));setData({transactions:transactionRows.map(row=>({id:row.id,date:String(row.transaction_date||''),description:String(row.description||''),company:String(names.get(String(row.company_id||''))||'')as Transaction['company'],companyId:String(row.company_id||''),clientOrProvider:String(row.client_id||''),assetId:String(row.asset_id||''),bankAccountId:String(row.bank_account_id||''),category:String(row.category_id||''),value:Number(row.value||0),type:(row.type||'despesa')as Transaction['type'],status:(row.status||'pendente')as Transaction['status'],investmentKind:/invest/i.test(String(row.investment_kind||row.source_module||row.origem||''))?'investimento':'operacional'})),accounts,properties,vehicles,investments,charges,metrics})}).catch(()=>{if(active)setData({transactions:[],accounts:[],properties:[],vehicles:[],investments:[],charges:[],metrics:[]})});return()=>{active=false}},[]);
   const [period, setPeriod] = useState<"ano" | "mes" | "hoje" | "custom">(
       "mes",
@@ -61,12 +65,14 @@ export default function Dashboard() {
   const currentMonthKey=iso(now).slice(0,7);
   const previousMonthDate=new Date(now.getFullYear(),now.getMonth()-1,1);
   const previousMonthKey=`${previousMonthDate.getFullYear()}-${String(previousMonthDate.getMonth()+1).padStart(2,"0")}`;
-  const paidInMonth=(key:string)=>allTransactions.filter(transaction=>transaction.status==='pago'&&transaction.date.startsWith(key));
-  const currentMonthTransactions=paidInMonth(currentMonthKey);
+  const transactionsInMonth=(key:string)=>allTransactions.filter(transaction=>transaction.date.startsWith(key));
+  const paidInMonth=(key:string)=>transactionsInMonth(key).filter(transaction=>transaction.status==='pago');
+  const currentMonthTransactions=transactionsInMonth(currentMonthKey);
+  const currentMonthPaidTransactions=paidInMonth(currentMonthKey);
   const previousMonthTransactions=paidInMonth(previousMonthKey);
   const monthlyRevenue=currentMonthTransactions.filter(transaction=>transaction.type==='receita').reduce((sum,transaction)=>sum+Math.abs(transaction.value),0);
   const monthlyExpense=currentMonthTransactions.filter(transaction=>transaction.type==='despesa').reduce((sum,transaction)=>sum+Math.abs(transaction.value),0);
-  const monthlyCashFlow=monthlyRevenue-monthlyExpense;
+  const monthlyCashFlow=currentMonthPaidTransactions.reduce((sum,transaction)=>sum+(transaction.type==='receita'?Math.abs(transaction.value):-Math.abs(transaction.value)),0);
   const previousMonthlyCashFlow=previousMonthTransactions.reduce((sum,transaction)=>sum+(transaction.type==='receita'?Math.abs(transaction.value):-Math.abs(transaction.value)),0);
   const monthlyGrowth=previousMonthlyCashFlow===0?0:((monthlyCashFlow-previousMonthlyCashFlow)/Math.abs(previousMonthlyCashFlow))*100;
   const transactions = allTransactions.filter(
@@ -85,27 +91,19 @@ export default function Dashboard() {
     if(account.current_balance!==undefined&&account.current_balance!==null)return sum+Number(account.current_balance||0);
     return sum+Number(account.initial_balance||0)+allTransactions.filter(transaction=>transaction.status==='pago'&&transaction.bankAccountId===account.id).reduce((balance,transaction)=>balance+(transaction.type==='receita'?Math.abs(transaction.value):-Math.abs(transaction.value)),0);
   },0);
+  const investedAccount=data.accounts.find(account=>
+    /investido atual/i.test(String(account.account_name??account.name??account.bank_name??account.banco??'')));
+  const investedCurrent=investedAccount
+    ? Number(investedAccount.current_balance??investedAccount.balance??investedAccount.initial_balance??0)
+    : manualInvestment;
   const properties = data.properties,
     vehicles = data.vehicles;
-  const monthlyAssetInvestment=[...properties,...vehicles]
-    .filter(asset=>String(asset.acquisition_date||'').startsWith(currentMonthKey))
-    .reduce((sum,asset)=>sum+Number(asset.purchase_value||0),0);
-  const monthlyFinancialInvestment=currentMonthTransactions
-    .filter(transaction=>transaction.type==='despesa'&&transaction.investmentKind==='investimento')
-    .reduce((sum,transaction)=>sum+Math.abs(transaction.value),0);
-  const monthlyInvested=monthlyAssetInvestment+monthlyFinancialInvestment;
-  const invested =
-    [...properties, ...vehicles].reduce(
-      (s, a) => s + Number(a.purchase_value || 0),
-      0,
-    ) +
-    allTransactions
-      .filter(
-        (t) => t.type === "despesa" && t.investmentKind === "investimento",
-      )
-      .reduce((s, t) => s + Math.abs(t.value), 0);
-  const manualInvested = data.investments.filter(item=>!item.asset_id).reduce((sum,item)=>sum+Math.abs(Number(item.value||0)),0);
-  const totalInvested = invested + manualInvested;
+  const currentOperationalCosts=fixedCosts
+    .filter(cost=>
+      (Number(cost.year)===Number(currentMonthKey.slice(0,4))
+        && Number(cost.month)===Number(currentMonthKey.slice(5,7)))
+      || String(cost.due_date||'').startsWith(currentMonthKey))
+    .reduce((sum,cost)=>sum+Number(cost.total??cost.price??0),0);
   const previousRange = useMemo(() => {
     const start = new Date(`${range.start || iso(now)}T12:00:00`),
       end = new Date(`${range.end}T12:00:00`),
@@ -372,7 +370,7 @@ export default function Dashboard() {
           )}
         </div>
       </div>
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid sm:grid-cols-2 xl:grid-cols-5 gap-6">
         <button onClick={() => navigate("/bancos")} className="text-left">
           <StatCard
             title="Saldo do Mês"
@@ -385,10 +383,10 @@ export default function Dashboard() {
             colorVariant="success"
           />
         </button>
-        <button onClick={() => navigate("/investimentos")} className="text-left">
+        <button onClick={() => navigate("/bancos")} className="text-left">
           <StatCard
-            title="Investido no Mês"
-            value={money(monthlyInvested)}
+            title="Investido Atual"
+            value={investedCurrent===null?"Não configurado":money(investedCurrent)}
             icon={<PiggyBank className="w-5 text-secondary" />}
           />
         </button>
@@ -409,6 +407,13 @@ export default function Dashboard() {
           <StatCard
             title="Despesas do Mês"
             value={money(monthlyExpense)}
+            icon={<ShoppingCart className="w-5 text-error" />}
+          />
+        </button>
+        <button onClick={() => navigate("/custo-fixo")} className="text-left">
+          <StatCard
+            title="Custos Operacionais"
+            value={money(currentOperationalCosts)}
             icon={<ShoppingCart className="w-5 text-error" />}
           />
         </button>

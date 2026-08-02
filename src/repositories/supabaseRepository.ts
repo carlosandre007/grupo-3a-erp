@@ -8,7 +8,7 @@ const sourceTables:Partial<Record<RepositoryModule,string>>={
 };
 const absentLegacyModules=new Set<RepositoryModule>([
   'assets','bank_movements','recurring_series','investments','alerts',
-  'deletion_logs','receipts','company_metrics',
+  'receipts','company_metrics',
 ]);
 const sourceTable=(module:RepositoryModule)=>sourceTables[module]??module;
 const sourceOrder=(module:RepositoryModule,orderBy:string)=>
